@@ -6,11 +6,7 @@ from chains.vectorstore_loader import load_vectorstore
 
 
 def get_rag_chain_from_file(uploaded_file, session_name="default"):
-    """
-    Build a session-specific RAG chain with memory + Chroma retriever.
-    Each session will have its own Chroma DB and chat history.
-    """
-
+  
     # Create session-specific folder for Chroma persistence
     persist_dir = os.path.join("chroma_dbs", session_name)
     os.makedirs(persist_dir, exist_ok=True)
