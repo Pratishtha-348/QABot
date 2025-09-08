@@ -1,91 +1,141 @@
-# app.py
 import streamlit as st
-from chains.rag_chain import get_rag_chain_from_file
+import time
+import requests
+import uuid
+from chains.rag_chain import get_rag_chain_from_file, get_rag_chain_from_url
 
-st.set_page_config(page_title="🤖 Q&A Bot", layout="centered")
-st.title("🤖 Q&A Bot with Memory")
+# ----------------- CONFIG -----------------
+API_URL = "http://localhost:8000/threadqa/chat"  # FastAPI chat endpoint
 
-# Initialize session state
+st.set_page_config(page_title="QABot", layout="wide")
+
+# ----------------- SESSION STATE -----------------
 if "sessions" not in st.session_state:
-    st.session_state.sessions = {"Session 1": []} 
-if "current_session" not in st.session_state:
-    st.session_state.current_session = "Session 1"
-if "rag_chain" not in st.session_state:
-    st.session_state.rag_chain = None
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+    st.session_state.sessions = {"Documents": {}, "URLs": {}}
 
+if "current_tab" not in st.session_state:
+    st.session_state.current_tab = "Documents"
 
-# Sidebar: manage sessions
+if "current_chat" not in st.session_state:
+    st.session_state.current_chat = None
+
+if "history_fetched" not in st.session_state:
+    st.session_state.history_fetched = {}
+
+# ----------------- SIDEBAR: CHAT SESSIONS -----------------
 with st.sidebar:
-    st.header("🗂 Sessions")
+    st.header("💬 Sessions")
+    active_sessions = st.session_state.sessions[st.session_state.current_tab]
 
-    # Auto-generate next session name
-    next_session_num = len(st.session_state.sessions) + 1
-    new_session_name = f"Session {next_session_num}"
+    if st.button("➕ New Chat", use_container_width=True):
+        new_name = f"Chat {len(active_sessions) + 1}"
+        new_session_id = str(uuid.uuid4())
+        active_sessions[new_name] = {
+            "rag_chain": None,
+            "messages": [],
+            "session_id": new_session_id
+        }
+        st.session_state.current_chat = new_name
+        st.session_state.history_fetched[new_name] = False
 
+    for name in active_sessions.keys():
+        if st.button(name, use_container_width=True):
+            st.session_state.current_chat = name
+            st.session_state.history_fetched[name] = False
 
-    # Button to create a new session automatically
-    if st.button("➕ New Session"):
-        session_count = len(st.session_state.sessions) + 1
-        new_session_name = f"Session {session_count}"
-        st.session_state.sessions[new_session_name] = []
-        st.session_state.current_session = new_session_name
-        st.session_state.chat_history = []
-        st.session_state.rag_chain = None
-        st.success(f"Created {new_session_name}")
+# ----------------- TABS: DOCUMENT / URL -----------------
+tab1, tab2 = st.tabs(["📄 Document Upload", "🔗 URL Upload"])
 
+with tab1:
+    st.session_state.current_tab = "Documents"
+    st.subheader("Upload a document and chat")
+    uploaded_file = st.file_uploader("Upload PDF, TXT, DOCX", type=["pdf", "txt", "docx"])
 
-    # Show session list
-    session_choice = st.selectbox(
-        "Switch session:",
-        options=list(st.session_state.sessions.keys()),
-        index=list(st.session_state.sessions.keys()).index(st.session_state.current_session),
-    )
+    if uploaded_file and st.button("Build RAG Chain from Document"):
+        if st.session_state.current_chat is None:
+            st.warning("⚠️ Please create a chat first!")
+        else:
+            with st.spinner("⏳ Processing document..."):
+                time.sleep(2)
+                active_sessions[st.session_state.current_chat]["rag_chain"] = get_rag_chain_from_file(
+                    uploaded_file, st.session_state.current_chat
+                )
+            st.success("✅ Document RAG Chain is ready!")
 
-    if session_choice != st.session_state.current_session:
-        st.session_state.current_session = session_choice
-        st.session_state.chat_history = st.session_state.sessions.get(session_choice, [])
-        st.session_state.rag_chain = None
+with tab2:
+    st.session_state.current_tab = "URLs"
+    st.subheader("Enter a webpage URL and chat")
+    url = st.text_input("Enter webpage URL")
 
+    if url and st.button("Build RAG Chain from URL"):
+        if st.session_state.current_chat is None:
+            st.warning("⚠️ Please create a chat first!")
+        else:
+            with st.spinner("🌐 Fetching and processing URL..."):
+                time.sleep(2)
+                active_sessions[st.session_state.current_chat]["rag_chain"] = get_rag_chain_from_url(
+                    url, st.session_state.current_chat
+                )
+            st.success("✅ URL RAG Chain is ready!")
 
-# File uploader
-uploaded_file = st.file_uploader("📂 Upload PDF/TXT/DOCX", type=["pdf", "txt", "docx", "doc"])
+# ----------------- CHAT AREA -----------------
+active_sessions = st.session_state.sessions[st.session_state.current_tab]
+if st.session_state.current_chat and st.session_state.current_chat in active_sessions:
+    st.subheader("💬 Chat")
+    chat = active_sessions[st.session_state.current_chat]
+    session_id = chat["session_id"]
 
-# Initialize chain when file uploaded
-if uploaded_file and st.session_state.rag_chain is None:
-    st.session_state.rag_chain = get_rag_chain_from_file(uploaded_file)
+    # 1️⃣ Fetch chat history (only once per chat)
+    if not st.session_state.history_fetched.get(st.session_state.current_chat, False):
+        resp = requests.get(f"{API_URL}/{session_id}")
+        if resp.status_code == 200:
+            chat["messages"] = resp.json()
+        st.session_state.history_fetched[st.session_state.current_chat] = True
 
+    # 2️⃣ Display messages
+    for msg in chat["messages"]:
+        if msg["question"]:
+            with st.chat_message("user"):
+                st.markdown(msg["question"])
+        if msg["answer"]:
+            with st.chat_message("assistant"):
+                st.markdown(msg["answer"])
 
-# Chat input
-
-# Display chat history for the current session
-for sender, msg in st.session_state.chat_history:
-    if sender == "You":
+    # 3️⃣ Chat input
+    if query := st.chat_input("Ask your question..."):
+        # Show user message immediately
         with st.chat_message("user"):
-            st.markdown(msg)
-    else:
-        with st.chat_message("assistant"):
-            st.markdown(msg)
+            st.markdown(query)
 
-# Chat input
-user_input = st.chat_input("💬 Ask me something...")
+        # 4️⃣ Generate answer first
+        if chat.get("rag_chain"):
+            with st.spinner("🤖 Thinking..."):
+                response = chat["rag_chain"].invoke({"question": query})
+                if "chat_history" in response:
+                    last_msg = response["chat_history"][-1]
+                    answer = getattr(last_msg, "content", str(last_msg))
+                else:
+                    answer = response.get("answer", "⚠️ No answer generated")
 
-if user_input and st.session_state.rag_chain:
-    with st.chat_message("user"):
-        st.markdown(user_input)
-    st.session_state.chat_history.append(("You", user_input))
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        for chunk in st.session_state.rag_chain.stream({"question": user_input}):
-            if isinstance(chunk, dict) and "answer" in chunk:
-                token = chunk["answer"]
-            else:
-                token = str(chunk)
-            full_response += token
-            message_placeholder.markdown(full_response + "▌")
-        message_placeholder.markdown(full_response)
-    st.session_state.chat_history.append(("Bot", full_response))
-    st.session_state.sessions[st.session_state.current_session] = st.session_state.chat_history
+            # 5️⃣ Show answer with typing animation
+            with st.chat_message("assistant"):
+                placeholder = st.empty()
+                typed_text = ""
+                for char in answer:
+                    typed_text += char
+                    placeholder.markdown(typed_text)
+                    time.sleep(0.02)
 
+            # 6️⃣ Insert full QA into DB in ONE shot
+            payload = {
+                "session_id": session_id,
+                "label": st.session_state.current_chat,
+                "question": query,
+                "answer": answer
+            }
+            save_resp = requests.post(API_URL, json=payload)
+
+            if save_resp.status_code == 200:
+                chat["messages"].append(payload)
+        else:
+            st.warning("⚠️ Please build a RAG chain first.")
