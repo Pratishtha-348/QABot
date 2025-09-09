@@ -1,5 +1,6 @@
 # schemas.py
 from pydantic import BaseModel
+from datetime import datetime
 
 class ThreadQABase(BaseModel):
     session_id: str
@@ -12,6 +13,8 @@ class ThreadQACreate(ThreadQABase):
 
 class ThreadQAResponse(ThreadQABase):
     id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         orm_mode = True
