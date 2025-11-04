@@ -140,22 +140,6 @@ Final answer is shown with detailed performance metrics.
 
 Conversation is stored persistently via FastAPI.
 
-🧑‍💻 Directory Structure
-advanced-rag-qabot/
-│
-├── app.py                    # Streamlit frontend (main UI)
-├── chains/
-│   ├── rag_agent.py          # Agent construction and RL feedback logic
-│   └── utils/                # Helper utilities
-│
-├── backend/
-│   ├── main.py               # FastAPI server
-│   └── database.py           # Q&A persistence layer
-│
-├── requirements.txt
-├── .env.example
-└── README.md
-
 🧪 Future Improvements
 
 ✅ Voice-based interaction (speech recognition + TTS)
