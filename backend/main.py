@@ -10,7 +10,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="ThreadQA API")
 
 # ---------------- CREATE Q&A ----------------
-@app.post("/threadqa/chat/", response_model=schemas.ThreadQAResponse)
+@app.post("/threadqa/chat", response_model=schemas.ThreadQAResponse)
 def create_chat_entry(data: schemas.ThreadQACreate, db: Session = Depends(get_db)):
     """
     Insert a new Q&A entry.
@@ -25,6 +25,11 @@ def create_chat_entry(data: schemas.ThreadQACreate, db: Session = Depends(get_db
     db.commit()
     db.refresh(qa)
     return qa
+
+
+@app.get("/")
+def root():
+    return {"message": "ThreadQA API is running"}
 
 # ---------------- GET CHAT HISTORY ----------------
 @app.get("/threadqa/chat/{session_id}", response_model=list[schemas.ThreadQAResponse])
