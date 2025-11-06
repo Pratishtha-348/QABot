@@ -72,7 +72,7 @@ Users can:
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/advanced-rag-qabot.git
+git clone https://github.com/Pratishtha-348/QABot.git
 cd advanced-rag-qabot
 python -m venv venv
 source venv/bin/activate    # For Linux/Mac
